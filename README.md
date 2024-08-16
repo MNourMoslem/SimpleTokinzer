@@ -1,4 +1,5 @@
-SimpleTokenizer
+__SimpleTokenizer__
+
 Overview
 The SimpleTokenizer is a custom tokenizer implemented in Python. It is designed to break down a given text into a sequence of tokens based on a specified regular expression pattern. The tokenizer can be trained on a corpus of text to generate a vocabulary that maps characters or sequences of characters to token IDs. This allows for efficient text encoding and decoding, which can be useful in various natural language processing tasks.
 
@@ -23,6 +24,7 @@ text = "aZcaZ"
 If we repeat the process and want to find another token, we see that "aZ" now appears the most. We convert it into a token, merge "a" and "Z" into the new token, and the text becomes:
 
 text = "XcX"
+
 ----
 ----
 Important Note:
@@ -35,15 +37,16 @@ The same applies to numbers. For example, instead of merging "someword23", we wa
 This is why we apply a regular expression to separate characters that we don't want to concatenate.
 
 example:
-text = "my email is somename234@gmail.com and my nickname is somename999."
+text = "my email is somename234@gmail and my nickname is somename999."
 
 after regular expression:
-text = ("my", " email", " is", "somename", "234", "@", "gmail", ".", "com", " and", " my", " nickname", " is", " somename", "999", ".")
+text = ("my", " email", " is", "somename", "234", "@", "gmail", " and", " my", " nickname", " is", " somename", "999", ".")
 
 then we basically apply same steps
 most pair -> create token -> merge pair to the token -> repeate for more tokens if needed
 
 (notice also that we don't like to concatenate space (" ") unless it comes in the beginning of the token)
+
 ---
 
 Tokenizer Algorithm
@@ -85,7 +88,7 @@ vocab: A dictionary mapping token IDs to their corresponding text.
 word2token: A dictionary mapping text to its corresponding token ID.
 Methods:
 
-* __init__(self, vocab_dir=None): Initializes the tokenizer. If a vocabulary directory is provided, it loads the vocabulary from that directory.
+* init(self, vocab_dir=None): Initializes the tokenizer. If a vocabulary directory is provided, it loads the vocabulary from that directory.
 * set_special_tokens(self, tokens: list): Sets special tokens that should be included in the vocabulary.
 * train(self, data: str, num_tokens): Trains the tokenizer on the given data to generate a vocabulary with the specified number of tokens.
 * _apply_pattern(self, pattern: str, data: str): Applies the regular expression pattern to the input data and returns the matches.
