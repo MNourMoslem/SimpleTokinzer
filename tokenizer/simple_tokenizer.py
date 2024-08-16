@@ -18,21 +18,24 @@ class SimpleTokinzer:
         If a vocabulary directory is provided, it loads the vocabulary from that directory.
         """
         self.pattern = r"'s|'t|'ll|'ve|'r|\s*[^\d\W]+|[\d]+|[^\w]"  # Regex pattern for tokenizing text
-        self.special_tokens = set(("<|unknown|>", "<|endoftext|>"))  # Set to store special tokens
+        self.special_tokens = set()  # Set to store special tokens
+        self.unknown_token = "<|unknown|>" # used to handle unknown charecters
 
         if vocab_dir:
             self.load(vocab_dir)  # Load vocabulary if directory is provided
             return
 
         self.num_tokens = None  # Total number of tokens in the vocabulary
-        self.vocab = {str(i): chr(i) for i in range(256)}  # Initialize vocabulary with ASCII characters
+        self.vocab = {i: chr(i) for i in range(256)}  # Initialize vocabulary with ASCII characters
         self.word2token = {}  # Dictionary to map words to token IDs
 
-    def set_special_tokens(self, tokens: list):
+    def set_special_tokens(self, tokens: list, unknown_token : str = None):
         """
         Sets special tokens that should be included in the vocabulary.
         """
         self.special_tokens = set(tokens)  # Update the special tokens set
+        if unknown_token:
+            self.unknown_token = unknown_token
 
     def train(self, data: str, num_tokens):
         """
@@ -60,7 +63,7 @@ class SimpleTokinzer:
             # Get the most frequent pair and add it to the vocabulary
             top = get_most_pair(pairs)
             token_id = 256 + i
-            self.vocab[str(token_id)] = self.encode(top)
+            self.vocab[token_id] = self.decode(top)
 
             # Merge the pair into a single token in the raw data
             for j in range(len(raws)):
@@ -69,6 +72,9 @@ class SimpleTokinzer:
         # Add special tokens to the vocabulary
         for i2, s_token in enumerate(self.special_tokens, start=1):
             self.vocab[i + 256 + i2] = s_token
+
+        # Add special unknown token to the vocabulary
+        self.vocab[len(self.vocab)] = self.unknown_token
 
         # Create a mapping from words to token IDs
         self.word2token = {v: int(k) for k, v in self.vocab.items()}
@@ -88,7 +94,7 @@ class SimpleTokinzer:
         """
         return "".join([self.vocab[item] for item in token])
 
-    def encode(self, text: list):
+    def encode(self, text: str):
         """
         Encodes a sequence of characters into token IDs using the current vocabulary.
         """
@@ -102,13 +108,13 @@ class SimpleTokinzer:
                     raw.append(self.word2token[temp])
                     temp = char
                 except KeyError:
-                    raw.append(self.word2token["<|unknown|>"])
+                    raw.append(self.word2token[self.unknown_token])
                     temp = char
         else:
             try:
                 raw.append(self.word2token[temp])
             except KeyError:
-                raw.append(self.word2token["<|unknown|>"])
+                raw.append(self.word2token[self.unknown_token])
 
         return raw
 
