@@ -4,7 +4,7 @@ with open('dataset\\TinyStories10k.txt', 'r') as f:
     tiny = f.read()
 
 tokenizer = SimpleTokinzer()
-tokenizer.set_special_tokens(["<|startoftext|>", "<|endoftext|>"])
+tokenizer.set_special_tokens(["<|endoftext|>"])
 
 tokenizer.train(tiny, 1000)
 
@@ -14,9 +14,9 @@ print(tokenizer.vocab)
 print("Tokinzer special_tokens:")
 print(tokenizer.special_tokens)
 
-tokenizer.save('vocab2.json')
+tokenizer.save('vocab.json')
 
-tokenizer2 = SimpleTokinzer("vocab2.json")
+tokenizer2 = SimpleTokinzer("vocab.json")
 
 print("Tokinzer2 vocab:")
 print(tokenizer2.vocab)
