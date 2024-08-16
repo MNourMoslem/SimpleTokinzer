@@ -1,6 +1,6 @@
 from tokenizer.simple_tokenizer import SimpleTokinzer
 
-with open('TinyStories10k.txt', 'r') as f:
+with open('dataset\\TinyStories10k.txt', 'r') as f:
     tiny = f.read()
 
 tokenizer = SimpleTokinzer()
