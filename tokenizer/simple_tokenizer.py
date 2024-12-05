@@ -17,6 +17,7 @@ class SimpleTokinzer:
         Initializes the SimpleTokinzer with default values.
         If a vocabulary directory is provided, it loads the vocabulary from that directory.
         """
+        self.special_tokens_pattern = r"<\|[\w]+\|>"
         self.pattern = r"'s|'t|'ll|'ve|'r|\s*[^\d\W]+|[\d]+|[^\w]"  # Regex pattern for tokenizing text
         self.special_tokens = set()  # Set to store special tokens
         self.unknown_token = "<|unknown|>" # used to handle unknown charecters
@@ -41,9 +42,10 @@ class SimpleTokinzer:
         """
         Trains the tokenizer by analyzing the given data and creating a vocabulary with the specified number of tokens.
         """
-        adjusted_data = self._apply_pattern(self.pattern, data)  # Apply regex pattern to the data
+        adjusted_data = self._apply_pattern(data)  # Apply regex pattern to the data
         raws = [get_raw(item) for item in adjusted_data]  # Get the raw byte representation of each token
         epochs = num_tokens - 256 - len(self.special_tokens)  # Calculate the number of iterations needed
+        print(adjusted_data)
 
         # Iterate through the training process to create the vocabulary
         for i in range(epochs):
@@ -52,8 +54,8 @@ class SimpleTokinzer:
             pairs = {}
 
             # Count the frequency of each pair of tokens
-            for raw in raws:
-                if len(raw) > 1:
+            for raw, raw_str in zip(raws, adjusted_data):
+                if len(raw) > 1 and raw_str not in self.special_tokens:
                     for pair in zip(raw, raw[1:]):
                         pairs[pair] = pairs.get(pair, 0) + 1
             if not pairs:
@@ -82,17 +84,27 @@ class SimpleTokinzer:
         print()
         print('Done!')
 
-    def _apply_pattern(self, pattern: str, data: str):
+    def _apply_pattern(self, data: str):
         """
         Applies the given regex pattern to the input data and returns the matches.
         """
-        return regex.findall(pattern, data)
+        pat = self.special_tokens_pattern + "|" + self.pattern
+        return regex.findall(pat, data)
 
-    def decode(self, token: tuple):
+    def decode_no_join(self, token_ids: list) -> list:
+        """
+        Decodes a sequence of token IDs but does not join them into a single text.
+        Instead, it returns a list where each token is converted to its character equivalent.
+        Handles special tokens properly.
+        """
+        return [self.vocab.get(token, self.unknown_token) for token in token_ids]
+
+    def decode(self, token_ids: list):
         """
         Decodes a sequence of token IDs back into the original text.
+        Handles special tokens properly.
         """
-        return "".join([self.vocab[item] for item in token])
+        return "".join(self.decode_no_join(token_ids))
 
     def encode(self, text: str):
         """
@@ -100,27 +112,37 @@ class SimpleTokinzer:
         """
         temp = ""
         raw = []
-        for char in text:
-            if temp + char in self.word2token:
-                temp += char
-            else:
-                try:
-                    raw.append(self.word2token[temp])
-                    temp = char
-                except KeyError:
-                    raw.append(self.word2token[self.unknown_token])
-                    temp = char
-        else:
-            try:
-                raw.append(self.word2token[temp])
-            except KeyError:
-                raw.append(self.word2token[self.unknown_token])
+        i = 0
+        while i < len(text):
+            char = text[i]
+            i+=1
+            
+            temp += char
+            if temp in self.word2token:
+                continue
+
+            if not any(spicel.startswith(temp) for spicel in self.special_tokens):
+                temp = temp[:-1]
+                if temp in self.word2token:
+                    raw.append(self.word2token.get(temp, self.unknown_token))
+                else:
+                    newtemp = ""
+                    for char in temp:
+                        newtemp += char
+                        if newtemp not in self.word2token:
+                            raw.append(self.word2token.get(newtemp[:-1], self.unknown_token))
+                            newtemp = char
+                temp = char
+                
+        if temp:
+            raw.append(self.word2token.get(temp, self.unknown_token))
 
         return raw
 
     def save(self, dir: str):
         """
-        Saves the current vocabulary to a file in the specified directory.
+        Saves the current vocabulary as to a file in the specified directory
+        as a .json file.
         """
         json_vocab = json.dumps(self.vocab)
         with open(dir, "w") as vocab_file:
