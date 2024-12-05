@@ -40,7 +40,7 @@ example:
 text = "my email is somename234@gmail and my nickname is somename999."
 
 after regular expression:
-text = ("my", " email", " is", "somename", "234", "@", "gmail", " and", " my", " nickname", " is", " somename", "999", ".")
+text = ("my", " email", " is", " somename", "234", "@", "gmail", " and", " my", " nickname", " is", " somename", "999", ".")
 
 then we basically apply same steps
 most pair -> create token -> merge pair to the token -> repeate for more tokens if needed
@@ -52,7 +52,7 @@ most pair -> create token -> merge pair to the token -> repeate for more tokens 
 Tokenizer Algorithm
 1. Pattern Matching
 The tokenizer uses a predefined regular expression pattern to identify tokens in the text. This pattern is designed to capture contractions, words, digits, and punctuation (inspired from gpt2 tokinzer and almost the same pattern).
-The pattern is: r"'s|'t|'ll|'ve|'r|\s*[^\d\W]+|[\d]+|[^\w]".
+The pattern is: r"<\|[^\|]*\|>|'s|'t|'ll|'ve|'r|\s*[^\d\W]+|[\d]+|[^\w]".
 This pattern matches:
 Contractions (e.g., 's, 't)
 Words (sequences of non-digit, non-whitespace characters)
