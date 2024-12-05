@@ -38,7 +38,7 @@ class SimpleTokinzer:
         if unknown_token:
             self.unknown_token = unknown_token
 
-    def train(self, data: str, num_tokens):
+    def train(self, data: str, num_tokens, k : int = 5):
         """
         Trains the tokenizer by analyzing the given data and creating a vocabulary with the specified number of tokens.
         """
@@ -63,13 +63,14 @@ class SimpleTokinzer:
                 break
 
             # Get the most frequent pair and add it to the vocabulary
-            top = get_most_pair(pairs)
-            token_id = 256 + i
-            self.vocab[token_id] = self.decode(top)
+            top = get_topk_pair(pairs, k)
+            for item in top:
+                token_id = len(self.vocab)
+                self.vocab[token_id] = self.decode(item)
 
-            # Merge the pair into a single token in the raw data
-            for j in range(len(raws)):
-                raws[j] = merge(raws[j], top, token_id)
+                # Merge the pair into a single token in the raw data
+                for j in range(len(raws)):
+                    raws[j] = merge(raws[j], item, token_id)
 
         # Add special tokens to the vocabulary
         for i2, s_token in enumerate(self.special_tokens, start=1):
@@ -209,3 +210,10 @@ def get_most_pair(pairs: dict):
     Returns the token pair with the highest frequency from the input dictionary.
     """
     return max(pairs, key=pairs.get)
+
+def get_topk_pair(pairs : dict, k : int):
+    assert k > 0 , "k must be bigger then 0"
+
+    s = sort_pairs(pairs)
+    res = s[:k] if k <= len(s) else s
+    return tuple(item[1] for item in res)
