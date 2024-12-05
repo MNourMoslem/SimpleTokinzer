@@ -17,9 +17,10 @@ class SimpleTokinzer:
         Initializes the SimpleTokinzer with default values.
         If a vocabulary directory is provided, it loads the vocabulary from that directory.
         """
-        self.pattern = r"'s|'t|'ll|'ve|'r|\s*[^\d\W]+|[\d]+|[^\w]"  # Regex pattern for tokenizing text
+        # Regex pattern for tokenizing text
+        self.pattern = r"<\|[^\|]*\|>|'s|'t|'ll|'ve|'r|\s*[^\d\W]+|[\d]+|[^\w]"
         self.special_tokens = set()  # Set to store special tokens
-        self.unknown_token = "<|unknown|>" # used to handle unknown charecters
+        self.unknown_token = "<|unknown|>"  # Used to handle unknown characters
 
         if vocab_dir:
             self.load(vocab_dir)  # Load vocabulary if directory is provided
@@ -29,7 +30,7 @@ class SimpleTokinzer:
         self.vocab = {i: chr(i) for i in range(256)}  # Initialize vocabulary with ASCII characters
         self.word2token = {}  # Dictionary to map words to token IDs
 
-    def set_special_tokens(self, tokens: list, unknown_token : str = None):
+    def set_special_tokens(self, tokens: list, unknown_token: str = None):
         """
         Sets special tokens that should be included in the vocabulary.
         """
@@ -88,33 +89,45 @@ class SimpleTokinzer:
         """
         return regex.findall(pattern, data)
 
-    def decode(self, token: tuple):
+    def decode_no_join(self, token_ids: list) -> list:
+        """
+        Decodes a sequence of token IDs but does not join them into a single text.
+        Instead, it returns a list where each token is converted to its character equivalent.
+        Handles special tokens properly.
+        """
+        return [self.vocab.get(token, self.unknown_token) for token in token_ids]
+
+    def decode(self, token_ids: list):
         """
         Decodes a sequence of token IDs back into the original text.
+        Handles special tokens properly.
         """
-        return "".join([self.vocab[item] for item in token])
+        return "".join(self.decode_no_join(token_ids))
 
     def encode(self, text: str):
         """
         Encodes a sequence of characters into token IDs using the current vocabulary.
+        Prioritizes special tokens to prevent splitting.
         """
-        temp = ""
         raw = []
-        for char in text:
-            if temp + char in self.word2token:
-                temp += char
-            else:
-                try:
-                    raw.append(self.word2token[temp])
-                    temp = char
-                except KeyError:
-                    raw.append(self.word2token[self.unknown_token])
-                    temp = char
-        else:
-            try:
-                raw.append(self.word2token[temp])
-            except KeyError:
-                raw.append(self.word2token[self.unknown_token])
+        i = 0
+
+        while i < len(text):
+            # Check for special tokens first
+            matched = False
+            for token in sorted(self.special_tokens, key=len, reverse=True):  # Sort by length to match longest first
+                if text[i:i+len(token)] == token:
+                    raw.append(self.word2token.get(token, self.word2token[self.unknown_token]))
+                    i += len(token)
+                    matched = True
+                    break
+            if matched:
+                continue
+
+            # Fallback to character-based encoding if no special token is matched
+            char = text[i]
+            raw.append(self.word2token.get(char, self.word2token[self.unknown_token]))
+            i += 1
 
         return raw
 
@@ -159,12 +172,6 @@ def sort_pairs(pairs: dict):
     """
     return sorted(((v, k) for k, v in pairs.items()), reverse=True)
 
-def get_pairs_str(pairs: list, decoding="utf-8", errors="replace"):
-    """
-    Converts a list of byte token pairs into a string representation.
-    """
-    return [(item[0], bytes(item[1]).decode(decoding, errors=errors)) for item in pairs]
-
 def merge(raw: list, pair: tuple, token_id: int):
     """
     Merges the most frequent pair in the raw list into a single token.
@@ -187,3 +194,4 @@ def get_most_pair(pairs: dict):
     Returns the token pair with the highest frequency from the input dictionary.
     """
     return max(pairs, key=pairs.get)
+
