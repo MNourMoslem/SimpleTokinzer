@@ -12,7 +12,7 @@ class SimpleTokinzer:
     It also allows saving and loading vocabularies.
     """
 
-    def __init__(self, vocab_dir=None, special_tokens = []):
+    def __init__(self, vocab_dir=None, special_tokens : list = []):
         """
         Initializes the SimpleTokinzer with default values.
         If a vocabulary directory is provided, it loads the vocabulary from that directory.
@@ -42,14 +42,18 @@ class SimpleTokinzer:
             self.unknown_token = unknown_token
         self.special_tokens.add(self.unknown_token)
 
-    def train(self, data: str, num_tokens, k : int = 5):
+    def train(self, data: str, num_tokens : int, k : int = 5):
         """
         Trains the tokenizer by analyzing the given data and creating
          a vocabulary with the specified number of tokens.
         """
         adjusted_data = self._apply_pattern(data)  # Apply regex pattern to the data
-        raws = [get_raw(item) for item in adjusted_data]  # Get the raw byte representation of each token
-    
+
+        raws = []  # Get the raw byte representation of each token
+        for item in adjusted_data:
+            if item not in self.special_tokens and len(item) > 1:
+                raws.append(get_raw(item))
+
         epochs = num_tokens - 256 - len(self.special_tokens) # Calculate the number of iterations needed
         epochs = int(epochs/k)
 
@@ -57,12 +61,11 @@ class SimpleTokinzer:
         for idx in range(epochs):
             print(f"Processing: {idx+1:>6} / {epochs:<6}")
             pairs = {}
-
+            
             # Count the frequency of each pair of tokens
-            for raw, raw_str in zip(raws, adjusted_data):
-                if len(raw) > 1 and raw_str not in self.special_tokens:
-                    for pair in zip(raw, raw[1:]):
-                        pairs[pair] = pairs.get(pair, 0) + 1
+            for raw in raws:
+                for pair in zip(raw, raw[1:]):
+                    pairs[pair] = pairs.get(pair, 0) + 1
             if not pairs:
                 idx -= 1
                 break
