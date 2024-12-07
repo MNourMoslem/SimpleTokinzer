@@ -29,9 +29,9 @@ class SimpleTokinzer:
             self.load(vocab_dir)  # Load vocabulary if directory is provided
             return
 
-        self.num_tokens = None  # Total number of tokens in the vocabulary
         self.vocab = {i: chr(i) for i in range(256)}  # Initialize vocabulary with ASCII characters
-        self.word2token = {}  # Dictionary to map words to token IDs
+        self.word2token = {j : i for i, j in self.vocab.items()}  # Dictionary to map words to token IDs
+        self.num_tokens = len(self.vocab)  # Total number of tokens in the vocabulary
 
     def set_special_tokens(self, tokens: list, unknown_token : str = None):
         """
