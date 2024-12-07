@@ -12,16 +12,19 @@ class SimpleTokinzer:
     It also allows saving and loading vocabularies.
     """
 
-    def __init__(self, vocab_dir=None):
+    def __init__(self, vocab_dir=None, special_tokens = []):
         """
         Initializes the SimpleTokinzer with default values.
         If a vocabulary directory is provided, it loads the vocabulary from that directory.
         """
         self.special_tokens_pattern = r"<\|[\w]+\|>"
         self.pattern = r"'s|'t|'ll|'ve|'r|\s*[^\d\W]+|[\d]+|[^\w]"  # Regex pattern for tokenizing text
-        self.special_tokens = set()  # Set to store special tokens
+        
+        self.special_tokens = None  # Set to store special tokens
         self.unknown_token = "<|unknown|>" # used to handle unknown charecters
 
+        self.set_special_tokens(tokens=special_tokens)
+        
         if vocab_dir:
             self.load(vocab_dir)  # Load vocabulary if directory is provided
             return
@@ -37,20 +40,22 @@ class SimpleTokinzer:
         self.special_tokens = set(tokens)  # Update the special tokens set
         if unknown_token:
             self.unknown_token = unknown_token
+        self.special_tokens.add(self.unknown_token)
 
     def train(self, data: str, num_tokens, k : int = 5):
         """
-        Trains the tokenizer by analyzing the given data and creating a vocabulary with the specified number of tokens.
+        Trains the tokenizer by analyzing the given data and creating
+         a vocabulary with the specified number of tokens.
         """
         adjusted_data = self._apply_pattern(data)  # Apply regex pattern to the data
         raws = [get_raw(item) for item in adjusted_data]  # Get the raw byte representation of each token
-        epochs = num_tokens - 256 - len(self.special_tokens)  # Calculate the number of iterations needed
-        print(adjusted_data)
+    
+        epochs = num_tokens - 256 - len(self.special_tokens) # Calculate the number of iterations needed
+        epochs = int(epochs/k)
 
         # Iterate through the training process to create the vocabulary
-        for i in range(epochs):
-            print(end='\r')
-            print(f"Processing: {i+1:>6} / {epochs:<6}", end="")
+        for idx in range(epochs):
+            print(f"Processing: {idx+1:>6} / {epochs:<6}")
             pairs = {}
 
             # Count the frequency of each pair of tokens
@@ -59,7 +64,7 @@ class SimpleTokinzer:
                     for pair in zip(raw, raw[1:]):
                         pairs[pair] = pairs.get(pair, 0) + 1
             if not pairs:
-                i -= 1
+                idx -= 1
                 break
 
             # Get the most frequent pair and add it to the vocabulary
@@ -74,10 +79,7 @@ class SimpleTokinzer:
 
         # Add special tokens to the vocabulary
         for i2, s_token in enumerate(self.special_tokens, start=1):
-            self.vocab[i + 256 + i2] = s_token
-
-        # Add special unknown token to the vocabulary
-        self.vocab[len(self.vocab)] = self.unknown_token
+            self.vocab[idx + 256 + i2] = s_token
 
         # Create a mapping from words to token IDs
         self.word2token = {v: int(k) for k, v in self.vocab.items()}
@@ -114,6 +116,7 @@ class SimpleTokinzer:
         temp = ""
         raw = []
         i = 0
+        unknown = self.word2token[self.unknown_token]
         while i < len(text):
             char = text[i]
             i+=1
@@ -125,18 +128,26 @@ class SimpleTokinzer:
             if not any(spicel.startswith(temp) for spicel in self.special_tokens):
                 temp = temp[:-1]
                 if temp in self.word2token:
-                    raw.append(self.word2token.get(temp, self.unknown_token))
+                    raw.append(self.word2token[temp])
                 else:
-                    newtemp = ""
-                    for char in temp:
-                        newtemp += char
-                        if newtemp not in self.word2token:
-                            raw.append(self.word2token.get(newtemp[:-1], self.unknown_token))
-                            newtemp = char
+                    if len(temp) == 1:
+                      raw.append(unknown)
+                    
+                    else:
+                      newtemp = ""
+                      for subchar in temp:
+                          newtemp += subchar
+                          if newtemp not in self.word2token:
+                              print(newtemp)
+                              raw.append(self.word2token.get(newtemp[:-1], unknown))
+                              newtemp = subchar
+
+                      if newtemp:
+                        raw.append(self.word2token.get(newtemp, unknown))
                 temp = char
                 
         if temp:
-            raw.append(self.word2token.get(temp, self.unknown_token))
+            raw.append(self.word2token.get(temp, unknown))
 
         return raw
 
