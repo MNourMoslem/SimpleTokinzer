@@ -39,7 +39,9 @@ class SimpleTokenizer:
             self.unknown_token = unknown_token
         self.special_tokens.add(self.unknown_token)
 
-    def train(self, data, num_tokens, k = 5, without_default_tokens = False, dont_print = False, dont_show_error = False, add_remaining_tokens = False):
+    def train(self, data, num_tokens, k = 5, without_default_tokens = False,
+              dont_print = False, dont_show_error = False, add_remaining_tokens = False,
+              detailed_print = False):
         """
         Trains the tokenizer by analyzing the given data and creating
         a vocabulary with the specified number of tokens.
@@ -63,7 +65,12 @@ class SimpleTokenizer:
                 k = target_tokens - epochs * k + k
 
             if not dont_print:
-                print(f"Processing: {epoch + 1}/{epochs}")
+                if detailed_print:
+                    raws_len = len(raws)
+                    suffix = f", looping throw {raws_len} raw item"
+                else:
+                    suffix = ""
+                print(f"Processing: {epoch + 1}/{epochs}{suffix}")
             pairs = {}
 
             for raw in raws:
@@ -189,22 +196,3 @@ def get_topk_pair(pairs, k):
     Returns the top-k most frequent token pairs.
     """
     return [pair for pair, _ in sorted(pairs.items(), key=lambda x: x[1], reverse=True)[:k]]
-
-def merge(raw, pair, token_id):
-    """
-    Merges occurrences of a token pair into a single token.
-    """
-    merged = []
-    continue_merge = False
-
-    for item in zip(raw, raw[1:]):
-        if continue_merge:
-            continue_merge = False
-            continue
-        if item == pair:
-            merged.append(token_id)
-            continue_merge = True
-        else:
-            merged.append(item[0])
-
-    return merged
