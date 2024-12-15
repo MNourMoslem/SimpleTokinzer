@@ -81,8 +81,21 @@ class SimpleTokenizer:
 
                 new_raws = []
                 for raw in raws:
-                    new_raws.append(merge(raw, pair, token_id))
+                    merged = []
+                    continue_merge = False
+                    for item in zip(raw, raw[1:]):
+                        if continue_merge:
+                            continue_merge = False
+                            continue
+                        if item == pair:
+                            merged.append(token_id)
+                            continue_merge = True
+                        else:
+                            merged.append(item[0])
+                    if merged:
+                        new_raws.append(merged)
                 raws = new_raws
+
 
         for i, token in enumerate(self.special_tokens, start=1):
             self.vocab[len(self.vocab)] = token
