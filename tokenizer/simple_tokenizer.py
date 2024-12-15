@@ -79,8 +79,10 @@ class SimpleTokenizer:
                 token_id = len(self.vocab)
                 self.vocab[token_id] = self.decode(pair)
 
-                for i in range(len(raws)):
-                    raws[i] = merge(raws[i], pair, token_id)
+                new_raws = []
+                for raw in raws:
+                    new_raws.append(merge(raw, pair, token_id))
+                raws = new_raws
 
         for i, token in enumerate(self.special_tokens, start=1):
             self.vocab[len(self.vocab)] = token
@@ -180,14 +182,16 @@ def merge(raw, pair, token_id):
     Merges occurrences of a token pair into a single token.
     """
     merged = []
-    i = 0
+    continue_merge = False
 
-    while i < len(raw):
-        if i < len(raw) - 1 and (raw[i], raw[i + 1]) == pair:
+    for item in zip(raw, raw[1:]):
+        if continue_merge:
+            continue_merge = False
+            continue
+        if item == pair:
             merged.append(token_id)
-            i += 2
+            continue_merge = True
         else:
-            merged.append(raw[i])
-            i += 1
+            merged.append(item[0])
 
     return merged
