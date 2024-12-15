@@ -99,10 +99,12 @@ class SimpleTokenizer:
                             continue_merge = True
                         else:
                             merged.append(item[0])
+                    if not continue_merge:
+                        merged.append(raw[-1])
                     if len(merged) > 1:
                         new_raws.append(merged)
                 raws = new_raws
-
+                
         for i, token in enumerate(self.special_tokens, start=1):
             self.vocab[len(self.vocab)] = token
 
