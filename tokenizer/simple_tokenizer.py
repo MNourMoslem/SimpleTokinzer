@@ -82,11 +82,11 @@ class SimpleTokenizer:
                 break
 
             top_pairs = get_topk_pair(pairs, k)
+            new_raws = []
             for pair in top_pairs:
                 token_id = len(self.vocab)
                 self.vocab[token_id] = self.decode(pair)
 
-                new_raws = []
                 for raw in raws:
                     merged = []
                     continue_merge = False
@@ -101,7 +101,7 @@ class SimpleTokenizer:
                             merged.append(item[0])
                     if merged:
                         new_raws.append(merged)
-                raws = new_raws
+            raws = new_raws
 
 
         for i, token in enumerate(self.special_tokens, start=1):
