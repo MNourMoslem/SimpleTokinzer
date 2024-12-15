@@ -4,230 +4,190 @@ This file contains the SimpleTokenizer class, which implements the tokenizer wit
 
 import regex
 import json
-import os
 
-class SimpleTokinzer:
+class SimpleTokenizer:
     """
-    SimpleTokinzer class is responsible for tokenizing text data using regular expressions.
+    SimpleTokenizer class is responsible for tokenizing text data using regular expressions.
     It also allows saving and loading vocabularies.
     """
 
-    def __init__(self, vocab_dir=None, special_tokens : list = []):
+    def __init__(self, vocab_dir=None, special_tokens=None, unknown_token=None):
         """
-        Initializes the SimpleTokinzer with default values.
+        Initializes the SimpleTokenizer with default values.
         If a vocabulary directory is provided, it loads the vocabulary from that directory.
         """
         self.special_tokens_pattern = r"<\|[\w]+\|>"
         self.pattern = r"'s|'t|'ll|'ve|'r|\s*[^\d\W]+|[\d]+|[^\w]"  # Regex pattern for tokenizing text
-        
-        self.special_tokens = None  # Set to store special tokens
-        self.unknown_token = "<|unknown|>" # used to handle unknown charecters
 
-        self.set_special_tokens(tokens=special_tokens)
-        
+        self.special_tokens = set(special_tokens or [])  # Use an empty set if no special tokens are provided
+        self.unknown_token = unknown_token or "<|unknown|>"  # Used to handle unknown characters
+        self.special_tokens.add(self.unknown_token)
+
         if vocab_dir:
             self.load(vocab_dir)  # Load vocabulary if directory is provided
-            return
+        else:
+            self.vocab = {i: chr(i) for i in range(256)}  # Initialize vocabulary with ASCII characters
+            self.word2token = {v: k for k, v in self.vocab.items()}  # Map words to token IDs
+            self.num_tokens = len(self.vocab)
 
-        self.vocab = {i: chr(i) for i in range(256)}  # Initialize vocabulary with ASCII characters
-        self.word2token = {j : i for i, j in self.vocab.items()}  # Dictionary to map words to token IDs
-        self.num_tokens = len(self.vocab)  # Total number of tokens in the vocabulary
-
-    def set_special_tokens(self, tokens: list, unknown_token : str = None):
+    def set_special_tokens(self, tokens, unknown_token=None):
         """
         Sets special tokens that should be included in the vocabulary.
         """
-        self.special_tokens = set(tokens)  # Update the special tokens set
+        self.special_tokens.update(tokens)
         if unknown_token:
             self.unknown_token = unknown_token
         self.special_tokens.add(self.unknown_token)
 
-    def train(self, data: str, num_tokens : int, k : int = 5):
+    def train(self, data, num_tokens, k = 5, without_default_tokens = False, dont_print = False, dont_show_error = False, add_remaining_tokens = False):
         """
         Trains the tokenizer by analyzing the given data and creating
-         a vocabulary with the specified number of tokens.
+        a vocabulary with the specified number of tokens.
         """
-        adjusted_data = self._apply_pattern(data)  # Apply regex pattern to the data
+        adjusted_data = self._apply_pattern(data)
+        raws = [get_raw(item) for item in adjusted_data if item not in self.special_tokens and len(item) > 1]
 
-        raws = []  # Get the raw byte representation of each token
-        for item in adjusted_data:
-            if item not in self.special_tokens and len(item) > 1:
-                raws.append(get_raw(item))
+        if without_default_tokens:
+            target_tokens = num_tokens
+        else:
+            target_tokens = num_tokens - 256 - len(self.special_tokens)
 
-        epochs = num_tokens - 256 - len(self.special_tokens) # Calculate the number of iterations needed
-        epochs = int(epochs/k)
+        epochs = max(1, target_tokens // k)
 
-        # Iterate through the training process to create the vocabulary
-        for idx in range(epochs):
-            print(f"Processing: {idx+1:>6} / {epochs:<6}")
+        if epochs * k < target_tokens and add_remaining_tokens:
+            epochs += 1
+
+        not_complete = True
+        for epoch in range(epochs):
+            if epoch == epochs - 1 and add_remaining_tokens:
+                k = target_tokens - epochs * k + k
+
+            if not dont_print:
+                print(f"Processing: {epoch + 1}/{epochs}")
             pairs = {}
-            
-            # Count the frequency of each pair of tokens
+
             for raw in raws:
                 for pair in zip(raw, raw[1:]):
                     pairs[pair] = pairs.get(pair, 0) + 1
+
             if not pairs:
-                idx -= 1
+                not_complete = False
                 break
 
-            # Get the most frequent pair and add it to the vocabulary
-            top = get_topk_pair(pairs, k)
-            for item in top:
+            top_pairs = get_topk_pair(pairs, k)
+            for pair in top_pairs:
                 token_id = len(self.vocab)
-                self.vocab[token_id] = self.decode(item)
+                self.vocab[token_id] = self.decode(pair)
 
-                # Merge the pair into a single token in the raw data
-                for j in range(len(raws)):
-                    raws[j] = merge(raws[j], item, token_id)
+                for i in range(len(raws)):
+                    raws[i] = merge(raws[i], pair, token_id)
 
-        # Add special tokens to the vocabulary
-        for i2, s_token in enumerate(self.special_tokens, start=1):
-            self.vocab[idx + 256 + i2] = s_token
+        for i, token in enumerate(self.special_tokens, start=1):
+            self.vocab[len(self.vocab)] = token
 
-        # Create a mapping from words to token IDs
-        self.word2token = {v: int(k) for k, v in self.vocab.items()}
-        self.num_tokens = len(self.vocab)  # Update the total number of tokens
-        print()
-        print('Done!')
+        self.word2token = {v: k for k, v in self.vocab.items()}
+        self.num_tokens = len(self.vocab)
 
-    def _apply_pattern(self, data: str):
+        if not not_complete:
+            suffix = " (not complete) can't train more tokens"
+        else:
+            suffix = ""
+
+        if self.num_tokens < num_tokens and k != 1:
+            default_tokens = 256 + len(self.special_tokens)
+            suffix += f" num_tokens is less than target_tokens, try to train with k = {default_tokens // (num_tokens - self.num_tokens)}"
+
+        if dont_show_error:
+            suffix = ""
+
+        if not dont_print:
+            print(f"Training complete!, vocab size: {self.num_tokens} {suffix}")
+
+    def _apply_pattern(self, data):
         """
         Applies the given regex pattern to the input data and returns the matches.
         """
-        pat = self.special_tokens_pattern + "|" + self.pattern
-        return regex.findall(pat, data)
+        combined_pattern = f"{self.special_tokens_pattern}|{self.pattern}"
+        return regex.findall(combined_pattern, data)
 
-    def decode_no_join(self, token_ids: list) -> list:
+    def decode_no_join(self, token_ids):
         """
-        Decodes a sequence of token IDs but does not join them into a single text.
-        Instead, it returns a list where each token is converted to its character equivalent.
-        Handles special tokens properly.
+        Decodes a sequence of token IDs into their character equivalents.
         """
         return [self.vocab.get(token, self.unknown_token) for token in token_ids]
 
-    def decode(self, token_ids: list):
+    def decode(self, token_ids):
         """
         Decodes a sequence of token IDs back into the original text.
-        Handles special tokens properly.
         """
         return "".join(self.decode_no_join(token_ids))
 
-    def encode(self, text: str):
+    def encode(self, text):
         """
-        Encodes a sequence of characters into token IDs using the current vocabulary.
+        Encodes a string into token IDs using the current vocabulary.
         """
         temp = ""
         raw = []
-        i = 0
         unknown = self.word2token[self.unknown_token]
-        while i < len(text):
-            char = text[i]
-            i+=1
-            
+
+        for char in text:
             temp += char
             if temp in self.word2token:
                 continue
 
-            if not any(spicel.startswith(temp) for spicel in self.special_tokens):
+            if not any(token.startswith(temp) for token in self.special_tokens):
                 temp = temp[:-1]
-                if temp in self.word2token:
-                    raw.append(self.word2token[temp])
-                else:
-                    if len(temp) == 1:
-                      raw.append(unknown)
-                    
-                    else:
-                      newtemp = ""
-                      for subchar in temp:
-                          newtemp += subchar
-                          if newtemp not in self.word2token:
-                              print(newtemp)
-                              raw.append(self.word2token.get(newtemp[:-1], unknown))
-                              newtemp = subchar
-
-                      if newtemp:
-                        raw.append(self.word2token.get(newtemp, unknown))
+                raw.append(self.word2token.get(temp, unknown))
                 temp = char
-                
+
         if temp:
             raw.append(self.word2token.get(temp, unknown))
 
         return raw
 
-    def save(self, dir: str):
+    def save(self, filepath):
         """
-        Saves the current vocabulary as to a file in the specified directory
-        as a .json file.
+        Saves the vocabulary to a specified file in JSON format.
         """
-        json_vocab = json.dumps(self.vocab)
-        with open(dir, "w") as vocab_file:
-            vocab_file.write(json_vocab)
+        with open(filepath, "w") as f:
+            json.dump(self.vocab, f)
 
-    def load(self, dir: str):
+    def load(self, filepath):
         """
-        Loads a vocabulary from the specified file and updates the tokenizer's vocabulary.
+        Loads a vocabulary from a specified JSON file.
         """
-        with open(dir, 'r') as f:
-            vocab = json.load(f)
+        with open(filepath, "r") as f:
+            self.vocab = {int(k): v for k, v in json.load(f).items()}
 
-        self.vocab = {int(k): v for k, v in vocab.items()}
-        self.word2token = {v: int(k) for k, v in self.vocab.items()}
-        self.num_tokens = len(self.vocab)  # Update the total number of tokens
+        self.word2token = {v: k for k, v in self.vocab.items()}
+        self.num_tokens = len(self.vocab)
 
 
-def get_raw(text: str, encoding="utf-8"):
+def get_raw(text, encoding="utf-8"):
     """
-    Converts a string into its raw byte representation using the specified encoding.
+    Converts a string into its raw byte representation.
     """
     return list(text.encode(encoding))
 
-def get_pairs(raw: list):
+def get_topk_pair(pairs, k):
     """
-    Counts the frequency of adjacent token pairs in the input list.
+    Returns the top-k most frequent token pairs.
     """
-    pairs = {}
-    for pair in zip(raw, raw[1:]):
-        pairs[pair] = pairs.get(pair, 0) + 1
-    return pairs
+    return [pair for pair, _ in sorted(pairs.items(), key=lambda x: x[1], reverse=True)[:k]]
 
-def sort_pairs(pairs: dict):
+def merge(raw, pair, token_id):
     """
-    Sorts the token pairs by frequency in descending order.
+    Merges occurrences of a token pair into a single token.
     """
-    return sorted(((v, k) for k, v in pairs.items()), reverse=True)
-
-def get_pairs_str(pairs: list, decoding="utf-8", errors="replace"):
-    """
-    Converts a list of byte token pairs into a string representation.
-    """
-    return [(item[0], bytes(item[1]).decode(decoding, errors=errors)) for item in pairs]
-
-def merge(raw: list, pair: tuple, token_id: int):
-    """
-    Merges the most frequent pair in the raw list into a single token.
-    """
-    new_raw = []
+    merged = []
     i = 0
 
     while i < len(raw):
-        if i < len(raw) - 1 and (raw[i], raw[i+1]) == pair:
-            new_raw.append(token_id)
+        if i < len(raw) - 1 and (raw[i], raw[i + 1]) == pair:
+            merged.append(token_id)
             i += 2
         else:
-            new_raw.append(raw[i])
+            merged.append(raw[i])
             i += 1
 
-    return new_raw
-
-def get_most_pair(pairs: dict):
-    """
-    Returns the token pair with the highest frequency from the input dictionary.
-    """
-    return max(pairs, key=pairs.get)
-
-def get_topk_pair(pairs : dict, k : int):
-    assert k > 0 , "k must be bigger then 0"
-
-    s = sort_pairs(pairs)
-    res = s[:k] if k <= len(s) else s
-    return tuple(item[1] for item in res)
+    return merged
